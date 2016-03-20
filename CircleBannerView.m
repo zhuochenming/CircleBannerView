@@ -7,6 +7,9 @@
 //
 
 #import "CircleBannerView.h"
+#import <objc/runtime.h>
+
+static char TimerKey;
 
 @interface CircleBannerCell : UICollectionViewCell
 
@@ -30,15 +33,13 @@
 
 @end
 
-@interface CircleBannerView ()<UIScrollViewDelegate, UICollectionViewDataSource,UICollectionViewDelegate>
+@interface CircleBannerView ()<UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate>
 
 @property (nonatomic, strong) NSArray *urlArray;
 
 @property (nonatomic, strong) UICollectionView *bannerCollectionView;
 
 @property (nonatomic, strong) UIPageControl *pageController;
-
-@property (nonatomic, strong) NSTimer *timer;
 
 @property (nonatomic, strong) UICollectionViewFlowLayout *flowLayout;
 
@@ -99,13 +100,28 @@
     if (self.interval == 0) {
         return;
     }
-    self.timer = [NSTimer scheduledTimerWithTimeInterval:self.interval target:self selector:@selector(changePage) userInfo:nil repeats:YES];
-    [[NSRunLoop currentRunLoop] addTimer:self.timer forMode:NSRunLoopCommonModes];
+    __block CircleBannerView *weakSelf = self;
+    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+    
+    objc_setAssociatedObject(self, &TimerKey, timer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, _interval * NSEC_PER_SEC, 0.1 * NSEC_PER_SEC);
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(_interval * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_source_set_event_handler(timer, ^{
+            [weakSelf changePage];
+        });
+    });
+
+    dispatch_resume(timer);
 }
 
 - (void)removeTimer {
-    [self.timer invalidate];
-    self.timer = nil;
+    dispatch_source_t timer = objc_getAssociatedObject(self, &TimerKey);
+    if (timer) {
+        objc_setAssociatedObject(self, &TimerKey, nil, OBJC_ASSOCIATION_ASSIGN);
+        dispatch_source_cancel(timer);
+        timer = nil;
+    }
 }
 
 - (void)changePage {
@@ -129,16 +145,16 @@
     if (!(self.urlArray.count > 0)) {
         return nil;
     }
-    if (indexPath.row == self.urlArray.count){
-        return self.urlArray.firstObject;
+    if (indexPath.row == _urlArray.count){
+        return _urlArray.firstObject;
     } else {
-        return self.urlArray[indexPath.row];
+        return _urlArray[indexPath.row];
     }
 }
 
 #pragma mark - collectionView delegate
 - (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
-    return self.urlArray.count + 1;
+    return _urlArray.count + 1;
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
@@ -158,11 +174,12 @@
 
 #pragma mark - scrollView delegate
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-    [_timer invalidate];
+//    [_timer invalidate];
+    [self removeTimer];
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-    self.pageController.currentPage = self.offsetLength / self.unitLength;
+    self.pageController.currentPage = _offsetLength / _unitLength;
     [self addTimer];
 }
 
@@ -171,7 +188,7 @@
     if (self.oldOffsetLength > self.offsetLength) {
         if (self.offsetLength < 0)
         {
-            [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:self.urlArray.count inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
+            [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:_urlArray.count inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
         }
     }else{
         if (self.offsetLength > self.contentLength - self.unitLength) {
@@ -211,7 +228,7 @@
     if (!_pageController) {
         _pageController = [[UIPageControl alloc] init];
         _pageController.currentPage = 0;
-        _pageController.numberOfPages = self.urlArray.count;
+        _pageController.numberOfPages = _urlArray.count;
         _pageController.backgroundColor = [UIColor clearColor];
         _pageController.currentPageIndicatorTintColor = [UIColor whiteColor];
         _pageController.pageIndicatorTintColor = [UIColor lightGrayColor];
