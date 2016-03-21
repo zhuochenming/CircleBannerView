@@ -33,35 +33,21 @@ static char TimerKey;
 
 @end
 
-@interface CircleBannerView ()<UIScrollViewDelegate, UICollectionViewDataSource, UICollectionViewDelegate>
+@interface CircleBannerView ()<UICollectionViewDataSource, UICollectionViewDelegate>
 
-@property (nonatomic, strong) NSArray *urlArray;
+@property (nonatomic, assign) BOOL isURL;
+
+@property (nonatomic, strong) NSArray *dataArray;
 
 @property (nonatomic, strong) UICollectionView *bannerCollectionView;
 
-@property (nonatomic, strong) UIPageControl *pageController;
+@property (nonatomic, strong) UIPageControl *pageControl;
 
 @property (nonatomic, strong) UICollectionViewFlowLayout *flowLayout;
-
-@property (nonatomic, assign) CGFloat unitLength;
-
-@property (nonatomic, assign) CGFloat offsetLength;
-
-@property (nonatomic, assign) CGFloat contentLength;
-
-@property (nonatomic, assign) CGFloat oldOffsetLength;
 
 @end
 
 @implementation CircleBannerView
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        [self initSubviews];
-    }
-    return self;
-}
 
 - (instancetype)initWithCoder:(NSCoder *)aDecoder {
     self = [super initWithCoder: aDecoder];
@@ -71,31 +57,63 @@ static char TimerKey;
     return self;
 }
 
+- (instancetype)initWithFrame:(CGRect)frame urlArray:(NSArray *)urlArray {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _isURL = YES;
+        [self initSubviews];
+        [self bannerWithURLArray:urlArray];
+    }
+    return self;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame imageArray:(NSArray *)imageArray {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _isURL = NO;
+        [self initSubviews];
+        [self bannerWithImageArray:imageArray];
+    }
+    return self;
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
     self.flowLayout.itemSize = self.frame.size;
 }
 
-#pragma mark - public method
-- (void)circleBannerWithURLArray:(NSArray *)urlArray {
-    self.urlArray = urlArray;
-    self.pageController.numberOfPages = urlArray.count;
-    [self.bannerCollectionView reloadData];
+#pragma mark - 链接
+- (void)bannerWithURLArray:(NSArray *)urlArray {
+    self.dataArray = urlArray;
+    self.pageControl.numberOfPages = urlArray.count;
+    if (_dataArray.count > 0) {
+        [self.bannerCollectionView reloadData];
+    }
 }
 
-#pragma mark - private method
+#pragma mark - 图片
+- (void)bannerWithImageArray:(NSArray *)imageArray {
+    self.dataArray = imageArray;
+    self.pageControl.numberOfPages = imageArray.count;
+    if (_dataArray.count > 0) {
+        [self.bannerCollectionView reloadData];
+    }
+}
+
+#pragma mark - 加载视图
 - (void)initSubviews {
     [self addSubview:self.bannerCollectionView];
-    [self addSubview:self.pageController];
+    [self addSubview:self.pageControl];
     [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[_bannerCollectionView]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_bannerCollectionView)]];
     [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[_bannerCollectionView]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_bannerCollectionView)]];
-    [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[_pageController]-10-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_pageController)]];
-    [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[_pageController]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_pageController)]];
+    [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:[_pageControl]-10-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_pageControl)]];
+    [self addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:[_pageControl]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_pageControl)]];
     self.scrollEnabled = YES;
     self.interval = 0.0;
     self.scrollDirection = CircleBannerViewScrollDirectionHorizontal;
 }
 
+#pragma mark - 计时器
 - (void)addTimer {
     if (self.interval == 0) {
         return;
@@ -125,81 +143,121 @@ static char TimerKey;
 }
 
 - (void)changePage {
-    
-    CGFloat newOffSetLength = self.offsetLength + self.unitLength;
+    CGFloat newOffSetLength = [self offsetX] + [self collectionViewWidth];
     //在换页到最后一个的时候多加一点距离，触发回到第一个图片的事件
-    if (newOffSetLength == self.contentLength - self.unitLength) {
+    if (newOffSetLength == [self contentWidth] - [self collectionViewWidth]) {
         newOffSetLength += 1;
     }
     CGPoint offSet;
     if (self.scrollDirection == CircleBannerViewScrollDirectionHorizontal) {
        offSet = CGPointMake(newOffSetLength, 0);
-    }else{
-        offSet = CGPointMake(0,newOffSetLength);
+    } else {
+        offSet = CGPointMake(0, newOffSetLength);
     }
     [self.bannerCollectionView setContentOffset:offSet animated:YES];
-    
 }
 
-- (NSString *)getImageUrlForIndexPath:(NSIndexPath *)indexPath {
-    if (!(self.urlArray.count > 0)) {
-        return nil;
-    }
-    if (indexPath.row == _urlArray.count){
-        return _urlArray.firstObject;
-    } else {
-        return _urlArray[indexPath.row];
-    }
-}
-
-#pragma mark - collectionView delegate
-- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
-    return _urlArray.count + 1;
-}
-
-- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-    CircleBannerCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"banner" forIndexPath:indexPath];
-    NSString *url = [self getImageUrlForIndexPath:indexPath];
-    if ([self.delegate respondsToSelector:@selector(imageView:loadImageForUrl:)]) {
-        [self.delegate imageView:cell.imageView loadImageForUrl:url];
-    }
-    return cell;
-}
-
-- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
-    if ([self.delegate respondsToSelector:@selector(bannerView:didSelectAtIndex:)]) {
-        [self.delegate bannerView:self didSelectAtIndex:self.pageController.currentPage];
-    }
-}
-
-#pragma mark - scrollView delegate
+#pragma mark - collectionView代理
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
-//    [_timer invalidate];
     [self removeTimer];
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-    self.pageController.currentPage = _offsetLength / _unitLength;
+    self.pageControl.currentPage = [self offsetX] / [self collectionViewWidth];
     [self addTimer];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView {
     UICollectionView *collectionView = (UICollectionView *)scrollView;
-    if (self.oldOffsetLength > self.offsetLength) {
-        if (self.offsetLength < 0)
-        {
-            [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:_urlArray.count inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
-        }
-    }else{
-        if (self.offsetLength > self.contentLength - self.unitLength) {
-            [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
-        }
+    if ([self offsetX] < 0) {
+        [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:_dataArray.count inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
+    } else if ([self offsetX] > [self contentWidth] - [self collectionViewWidth]) {
+        [collectionView scrollToItemAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0] atScrollPosition:UICollectionViewScrollPositionNone animated:NO];
     }
-    self.pageController.currentPage = self.offsetLength / self.unitLength;
-    self.oldOffsetLength = self.offsetLength;
+    
+    if ([self offsetX] > (_dataArray.count - 1) * [self collectionViewWidth]) {
+        self.pageControl.currentPage = 0;
+    } else {
+        self.pageControl.currentPage = [self offsetX] / [self collectionViewWidth];
+    }
+    
+    if ([self.delegate respondsToSelector:@selector(bannerView:scrollToIndex:)]) {
+        [self.delegate bannerView:self scrollToIndex:_pageControl.currentPage];
+    }
 }
 
-#pragma mark - setter && getter
+- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
+    return _dataArray.count + 1;
+}
+
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    CircleBannerCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"banner" forIndexPath:indexPath];
+    if (_isURL) {
+        NSString *url;
+        if (indexPath.row == _dataArray.count) {
+            url = _dataArray.firstObject;
+        } else {
+            url = _dataArray[indexPath.row];
+        }
+        if ([self.delegate respondsToSelector:@selector(imageView:loadImageForUrl:)]) {
+            [self.delegate imageView:cell.imageView loadImageForUrl:url];
+        }
+    } else {
+        NSInteger row;
+        if (indexPath.row == _dataArray.count){
+            row = 0;
+        } else {
+            row = indexPath.row;
+        }
+        cell.imageView.image = _dataArray[row];
+    }
+   
+    return cell;
+}
+
+- (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
+    if ([self respondsToSelector:@selector(bannerView:didSelectAtIndex:)]) {
+        [self.delegate bannerView:self didSelectAtIndex:_pageControl.currentPage];
+    }
+}
+
+#pragma mark - setter方法
+- (void)setScrollDirection:(CircleBannerViewScrollDirection)scrollDirection {
+    if (_scrollDirection != scrollDirection) {
+        _scrollDirection = scrollDirection;
+        if (scrollDirection == CircleBannerViewScrollDirectionVertical) {
+            self.flowLayout.scrollDirection = UICollectionViewScrollDirectionVertical;
+        }else{
+            self.flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
+        }
+        [self.bannerCollectionView reloadData];
+    }
+}
+
+- (void)setInterval:(NSTimeInterval)interval {
+    _interval = interval;
+    [self removeTimer];
+    if (interval != 0) {
+        [self addTimer];
+    }
+}
+
+- (void)setScrollEnabled:(BOOL)scrollEnabled {
+    _scrollEnabled = scrollEnabled;
+    self.bannerCollectionView.scrollEnabled = _scrollEnabled;
+}
+
+#pragma mark - getter方法
+- (UICollectionViewFlowLayout *)flowLayout {
+    if (!_flowLayout) {
+        _flowLayout = [[UICollectionViewFlowLayout alloc]init];
+        _flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
+        _flowLayout.minimumInteritemSpacing = 0;
+        _flowLayout.minimumLineSpacing = 0;
+    }
+    return _flowLayout;
+}
+
 - (UICollectionView *)bannerCollectionView {
     if (!_bannerCollectionView) {
         _bannerCollectionView = [[UICollectionView alloc]initWithFrame:self.bounds collectionViewLayout:self.flowLayout];
@@ -214,70 +272,30 @@ static char TimerKey;
     return _bannerCollectionView;
 }
 
-- (UICollectionViewFlowLayout *)flowLayout {
-    if (!_flowLayout) {
-        _flowLayout = [[UICollectionViewFlowLayout alloc]init];
-        _flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
-        _flowLayout.minimumInteritemSpacing = 0;
-        _flowLayout.minimumLineSpacing = 0;
+- (UIPageControl *)pageControl {
+    if (!_pageControl) {
+        _pageControl = [[UIPageControl alloc] init];
+        _pageControl.currentPage = 0;
+        _pageControl.numberOfPages = _dataArray.count;
+        _pageControl.backgroundColor = [UIColor clearColor];
+        _pageControl.currentPageIndicatorTintColor = [UIColor whiteColor];
+        _pageControl.pageIndicatorTintColor = [UIColor lightGrayColor];
+        _pageControl.translatesAutoresizingMaskIntoConstraints = NO;
     }
-    return _flowLayout;
+    return  _pageControl;
 }
 
-- (UIPageControl *)pageController {
-    if (!_pageController) {
-        _pageController = [[UIPageControl alloc] init];
-        _pageController.currentPage = 0;
-        _pageController.numberOfPages = _urlArray.count;
-        _pageController.backgroundColor = [UIColor clearColor];
-        _pageController.currentPageIndicatorTintColor = [UIColor whiteColor];
-        _pageController.pageIndicatorTintColor = [UIColor lightGrayColor];
-        _pageController.translatesAutoresizingMaskIntoConstraints = NO;
-    }
-    return  _pageController;
-}
-
-- (void)setScrollDirection:(CircleBannerViewScrollDirection)scrollDirection {
-    if (_scrollDirection != scrollDirection) {
-        _scrollDirection = scrollDirection;
-        if (scrollDirection == CircleBannerViewScrollDirectionVertical) {
-            self.flowLayout.scrollDirection = UICollectionViewScrollDirectionVertical;
-        }else{
-           self.flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
-        }
-        [self.bannerCollectionView reloadData];
-    }
-}
-
-- (void)setScrollEnabled:(BOOL)scrollEnabled {
-    _scrollEnabled = scrollEnabled;
-    self.bannerCollectionView.scrollEnabled = _scrollEnabled;
-}
-
-- (CGFloat)unitLength {
+#pragma mark - 大小，偏移
+- (CGFloat)collectionViewWidth {
     return self.scrollDirection == CircleBannerViewScrollDirectionHorizontal ? CGRectGetWidth(self.frame) : CGRectGetHeight(self.frame);
 }
 
-- (CGFloat)offsetLength {
+- (CGFloat)offsetX {
     return self.scrollDirection == CircleBannerViewScrollDirectionHorizontal ? self.bannerCollectionView.contentOffset.x : self.bannerCollectionView.contentOffset.y;
 }
 
-- (CGFloat)contentLength {
+- (CGFloat)contentWidth {
     return self.scrollDirection == CircleBannerViewScrollDirectionHorizontal ? self.bannerCollectionView.contentSize.width : self.bannerCollectionView.contentSize.height;
 }
-- (void)setInterval:(NSTimeInterval)interval {
-    _interval = interval;
-    [self removeTimer];
-    if (interval != 0) {
-        [self addTimer];
-    }
-}
-/*
-// Only override drawRect: if you perform custom drawing.
-// An empty implementation adversely affects performance during animation.
-- (void)drawRect:(CGRect)rect {
-    // Drawing code
-}
-*/
 
 @end
