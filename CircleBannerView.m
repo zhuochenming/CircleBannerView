@@ -227,7 +227,7 @@ static char TimerKey;
         _scrollDirection = scrollDirection;
         if (scrollDirection == CircleBannerViewScrollDirectionVertical) {
             self.flowLayout.scrollDirection = UICollectionViewScrollDirectionVertical;
-        }else{
+        } else {
             self.flowLayout.scrollDirection = UICollectionViewScrollDirectionHorizontal;
         }
         [self.bannerCollectionView reloadData];
