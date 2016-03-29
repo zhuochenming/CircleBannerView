@@ -22,9 +22,9 @@ static char TimerKey;
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
-        self.imageView = [[UIImageView alloc]init];
+        self.imageView = [[UIImageView alloc] init];
         self.imageView.translatesAutoresizingMaskIntoConstraints = NO;
-        [self.contentView addSubview:self.imageView];
+        [self.contentView addSubview:_imageView];
         [self.contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-0-[_imageView]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_imageView)]];
         [self.contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-0-[_imageView]-0-|" options:0 metrics:0 views:NSDictionaryOfVariableBindings(_imageView)]];
     }
@@ -216,7 +216,7 @@ static char TimerKey;
 }
 
 - (void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
-    if ([self respondsToSelector:@selector(bannerView:didSelectAtIndex:)]) {
+    if ([self.delegate respondsToSelector:@selector(bannerView:didSelectAtIndex:)]) {
         [self.delegate bannerView:self didSelectAtIndex:_pageControl.currentPage];
     }
 }
